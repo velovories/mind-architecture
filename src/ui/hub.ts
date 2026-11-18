@@ -1,7 +1,7 @@
 // The home screen: a greeting with the day's question and live tiles.
 // A tile shows the thing itself; a tap opens it in place; «Открыть» goes to its full screen.
 
-import { App, Modal, Notice, setIcon } from "obsidian";
+import { App, Modal, setIcon } from "obsidian";
 import type MindPlugin from "../main";
 import { analyzeLinkLines } from "../core/links";
 import { pickForDay } from "../core/similarity";
@@ -11,6 +11,7 @@ import { VIEW_TODAY, VIEW_STATS, VIEW_ISLANDS } from "./views";
 import { LinkModal } from "./link-modal";
 import { CaptureModal } from "./capture";
 import { WalkModal, walkStart } from "./walk";
+import { ThoughtModal } from "./thought";
 import { t } from "../i18n";
 
 type Tile = { wide?: boolean; render: (el: HTMLElement, open: boolean) => void; full?: () => void };
@@ -148,7 +149,7 @@ export class HubView extends MindView {
           el.createDiv({ text: t("pairWhyA") + p.shared.join(" · ") + t("pairWhyB"), cls: "mind-muted mind-small" });
           const row = el.createDiv("mind-row");
           row.createEl("button", { text: t("compare"), cls: "mod-cta" }).onclick = () => this.peek([p.from, p.path]);
-          row.createEl("button", { text: t("writeThought") }).onclick = () => void this.writeThought(p.from, p.path, p.shared);
+          row.createEl("button", { text: t("writeThought") }).onclick = () => new ThoughtModal(this.app, this.plugin, p.from, p.path, p.shared).open();
           row.createEl("button", { text: t("link") }).onclick = () => {
             const f = m.files.get(p.from);
             if (f) new LinkModal(this.app, f, index.title(p.path), undefined, this.plugin).open();
@@ -281,16 +282,7 @@ export class HubView extends MindView {
     return items.sort((a, b) => (b.n ?? 0) - (a.n ?? 0));
   }
 
-  private async writeThought(a: string, b: string, shared: string[]): Promise<void> {
-    const ta = this.plugin.model.index!.title(a), tb = this.plugin.model.index!.title(b);
-    let name = t("thoughtName", { a: ta, b: tb }).replace(/[\\/:*?"<>|#^[\]]/g, " ").slice(0, 120).trim();
-    let i = 2;
-    while (this.app.vault.getAbstractFileByPath(`${name}.md`)) name = `${name} ${i++}`;
-    const body = t("thoughtBody", { a: ta, b: tb, words: shared.join(", "), date: new Date().toLocaleDateString("ru-RU") });
-    const file = await this.app.vault.create(`${name}.md`, body);
-    await this.app.workspace.getLeaf("tab").openFile(file);
-    new Notice(t("thoughtCreated"));
-  }
+
 }
 
 /** Reorder with arrows (works on a phone, unlike drag), hide with the eye, auto-order switch. */

@@ -121,3 +121,7 @@
 .mind-view button.mind-tile2-head:hover { background: none; }
 .mind-tile2-top .mind-card-head { flex-grow: 1; }
 .mind-tile-totals .mind-tile2-top { justify-content: flex-start; }
+.mind-segment { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: var(--background-modifier-form-field, var(--background-secondary)); border: 1px solid var(--background-modifier-border); }
+.mind-view .mind-segment-btn, .mind-segment-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; height: auto; border-radius: 9px; background: none; border: 0; box-shadow: none; color: var(--text-muted); }
+.mind-segment-btn.is-active { background: var(--interactive-accent); color: var(--text-on-accent); }
+.mind-th-body { display: flex; flex-direction: column; gap: 6px; }

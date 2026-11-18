@@ -17,6 +17,7 @@ export interface PluginData {
   tiles: { order: string[]; hidden: string[]; auto: boolean };
   captureFolder: string;            // where "what I learned today" notes go; "" = vault root
   dayPair?: { day: string; a: string; b: string };
+  thoughtMode?: "free" | "guided";
 }
 
 export const TILE_IDS = ["greeting", "totals", "pair", "next", "islands", "walk", "bare", "quality", "recent"] as const;
