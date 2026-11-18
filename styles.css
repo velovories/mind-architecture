@@ -1,0 +1,54 @@
+/* Mind Architecture — uses Obsidian theme variables, so it follows light/dark and the user's theme. */
+
+.mind-view { padding: 12px 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+.mind-title { margin: 4px 0 2px; }
+.mind-muted { color: var(--text-muted); }
+.mind-small { font-size: var(--font-ui-small); line-height: 1.4; }
+.mind-accent { color: var(--text-accent); }
+.mind-label { font-size: var(--font-ui-smaller); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 4px 0 6px; display: block; }
+.mind-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.mind-row button { min-height: 40px; }
+.mind-foot { margin-top: 6px; }
+
+.mind-card { background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.mind-card-head { display: flex; align-items: center; gap: 8px; font-size: var(--font-ui-smaller); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-accent); }
+.mind-card.is-warm .mind-card-head { color: var(--color-orange); }
+.mind-card-icon { display: inline-flex; }
+.mind-card-icon svg { width: 16px; height: 16px; }
+.mind-question { font-size: 1.02em; line-height: 1.45; }
+.mind-pair-list { display: flex; flex-direction: column; gap: 6px; font-size: 1.02em; }
+
+.mind-note-link { color: var(--link-color); text-decoration: none; font-weight: 600; }
+.mind-note-link:hover { text-decoration: underline; }
+
+.mind-count-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 6px 0; background: none; border: 0; border-top: 1px solid var(--background-modifier-border); box-shadow: none; text-align: left; height: auto; color: var(--text-normal); cursor: pointer; }
+.mind-count-row:first-of-type { border-top: 0; }
+.mind-count { font-size: 1.3em; font-weight: 700; min-width: 40px; }
+.mind-count-label { flex-grow: 1; white-space: normal; }
+.mind-chevron { color: var(--text-faint); display: inline-flex; }
+
+.mind-section { display: flex; flex-direction: column; gap: 8px; }
+.mind-link-card { background: var(--background-secondary); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.mind-link-card.is-bare { border: 1px dashed var(--background-modifier-border-hover); background: transparent; }
+.mind-explain { color: var(--text-normal); opacity: .85; }
+.mind-small-btn { align-self: flex-start; min-height: 36px; font-size: var(--font-ui-small); }
+.mind-back-row { padding: 2px 0; }
+
+.mind-big { font-size: 2.2em; font-weight: 700; }
+.mind-big .mind-muted { font-size: .4em; font-weight: 400; }
+.mind-bar { height: 10px; border-radius: 5px; background: var(--background-modifier-border); overflow: hidden; }
+.mind-bar-fill { height: 100%; background: var(--interactive-accent); }
+.mind-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mind-tile { background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 12px; padding: 12px; }
+.mind-tile-n { font-size: 1.6em; font-weight: 700; }
+
+.mind-link-modal .modal-content { display: flex; flex-direction: column; gap: 8px; }
+.mind-pair { font-size: 1.02em; }
+.mind-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.mind-chip { border-radius: 18px; min-height: 36px; }
+.mind-chip.is-active { background: var(--interactive-accent); color: var(--text-on-accent); }
+.mind-why { width: 100%; resize: vertical; min-height: 72px; font-size: 1em; }
+.mind-preview { white-space: pre-wrap; word-break: break-word; font-size: var(--font-ui-small); background: var(--background-primary-alt); border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 10px 12px; margin: 0; }
+
+.mind-list { display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; }
+.mind-list-item { display: flex; justify-content: space-between; gap: 12px; min-height: 44px; height: auto; padding: 8px 4px; background: none; border: 0; box-shadow: none; border-bottom: 1px solid var(--background-modifier-border); text-align: left; white-space: normal; color: var(--text-normal); cursor: pointer; }
