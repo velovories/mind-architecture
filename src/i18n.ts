@@ -78,6 +78,14 @@ const ru = {
   setForget: "Вернуть отклонённые пары",
   setForgetDesc: "Сейчас скрыто: {n}.",
   setForgetBtn: "Вернуть",
+  openFull: "Открыть полностью",
+  backToQuestion: "Назад к вопросу",
+  back: "Назад",
+  recent: "Недавно открытые",
+  recentEmpty: "Пока пусто — открой пару заметок.",
+  compare: "Сравнить",
+  prevNote: "Предыдущая: «{t}»",
+  tapToPeek: "нажми на название — заметка откроется поверх, не уходя отсюда",
 };
 
 type Strings = typeof ru;
@@ -158,6 +166,14 @@ const uk: Strings = {
   setForget: "Повернути відхилені пари",
   setForgetDesc: "Зараз приховано: {n}.",
   setForgetBtn: "Повернути",
+  openFull: "Відкрити повністю",
+  backToQuestion: "Назад до питання",
+  back: "Назад",
+  recent: "Нещодавно відкриті",
+  recentEmpty: "Поки порожньо — відкрий кілька нотаток.",
+  compare: "Порівняти",
+  prevNote: "Попередня: «{t}»",
+  tapToPeek: "натисни на назву — нотатка відкриється поверх, не йдучи звідси",
 };
 
 export const STRINGS: Record<Lang, Strings> = { ru, uk };

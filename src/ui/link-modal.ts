@@ -3,13 +3,15 @@
 import { App, Modal, Notice, TFile } from "obsidian";
 import { applyExplanation, explanationSuffix } from "../core/links";
 import { SECTION_NAMES, confidences, kinds, t } from "../i18n";
+import { PreviewModal } from "./preview";
+import type MindPlugin from "../main";
 
 export class LinkModal extends Modal {
   private kind = kinds()[0];
   private confidence = confidences()[1];
   private statement = "";
 
-  constructor(app: App, private from: TFile, private toTitle: string, private onDone?: () => void) {
+  constructor(app: App, private from: TFile, private toTitle: string, private onDone?: () => void, private plugin?: MindPlugin) {
     super(app);
   }
 
@@ -18,9 +20,17 @@ export class LinkModal extends Modal {
     this.modalEl.addClass("mind-link-modal");
     contentEl.createEl("h3", { text: t("modalTitle") });
     const pair = contentEl.createDiv("mind-pair");
-    pair.createSpan({ text: this.from.basename });
+    const to = this.app.metadataCache.getFirstLinkpathDest(this.toTitle, this.from.path);
+    const peek = (el: HTMLElement, path: string | undefined) => {
+      if (!path) return;
+      el.addClass("mind-peek");
+      el.onclick = () => new PreviewModal(this.app, to ? [path, path === to.path ? this.from.path : to.path] : [path],
+        (p) => this.plugin?.remember(p)).open();
+    };
+    peek(pair.createSpan({ text: this.from.basename }), this.from.path);
     pair.createSpan({ text: " → ", cls: "mind-muted" });
-    pair.createSpan({ text: this.toTitle, cls: "mind-accent" });
+    peek(pair.createSpan({ text: this.toTitle, cls: "mind-accent" }), to?.path);
+    if (to) contentEl.createDiv({ text: t("tapToPeek"), cls: "mind-muted mind-small" });
 
     contentEl.createDiv({ text: t("kindLabel"), cls: "mind-label" });
     const preview = () => this.renderPreview(previewEl, save);

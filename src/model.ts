@@ -10,9 +10,10 @@ export interface PluginData {
   snoozed: Record<string, number>;  // pair key → ms timestamp until which it is hidden
   excludeFolders: string[];
   lang: Lang;
+  recent: string[];                 // last opened notes, newest first
 }
 
-export const DEFAULT_DATA: PluginData = { rejected: [], snoozed: {}, excludeFolders: [], lang: "ru" };
+export const DEFAULT_DATA: PluginData = { rejected: [], snoozed: {}, excludeFolders: [], lang: "ru", recent: [] };
 
 export const pairKey = (a: string, b: string) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
 

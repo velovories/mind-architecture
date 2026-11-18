@@ -5,6 +5,7 @@ import type MindPlugin from "../main";
 import { analyzeLinkLines } from "../core/links";
 import { pickForDay } from "../core/similarity";
 import { LinkModal } from "./link-modal";
+import { PreviewModal } from "./preview";
 import { t } from "../i18n";
 
 export const VIEW_TODAY = "mind-today";
@@ -37,10 +38,29 @@ abstract class MindView extends ItemView {
     return c;
   }
 
-  protected noteLink(parent: HTMLElement, path: string, title: string): HTMLElement {
+  /** A note name: tap = quick look over this screen; the preview has "open fully" and "back to the question". */
+  protected noteLink(parent: HTMLElement, path: string, title: string, compareWith?: string): HTMLElement {
     const a = parent.createEl("a", { text: title, cls: "mind-note-link", href: "#" });
-    a.onclick = (e) => { e.preventDefault(); void this.app.workspace.openLinkText(path, "", false); };
+    a.onclick = (e) => { e.preventDefault(); this.peek(compareWith ? [path, compareWith] : [path]); };
     return a;
+  }
+
+  protected peek(paths: string[]): void {
+    new PreviewModal(this.app, paths, (p) => this.plugin.remember(p)).open();
+  }
+
+  protected recentCard(parent: HTMLElement, except?: string): void {
+    const c = this.card(parent, "history", t("recent"));
+    const list = this.plugin.recent(3, except);
+    if (!list.length) { c.createDiv({ text: t("recentEmpty"), cls: "mind-muted mind-small" }); return; }
+    const box = c.createDiv("mind-recent");
+    for (const p of list) {
+      const f = this.app.vault.getAbstractFileByPath(p) as TFile;
+      const b = box.createEl("button", { cls: "mind-recent-item" });
+      setIcon(b.createSpan("mind-card-icon"), "file-text");
+      b.createSpan({ text: f.basename });
+      b.onclick = () => this.peek([p]);
+    }
   }
 
   protected loading(el: HTMLElement): boolean {
@@ -70,8 +90,8 @@ export class TodayView extends MindView {
       c.createDiv({ text: t("pairEmpty"), cls: "mind-muted" });
     } else {
       const list = c.createDiv("mind-pair-list");
-      this.noteLink(list.createDiv(), p.from, index!.title(p.from));
-      this.noteLink(list.createDiv(), p.path, index!.title(p.path));
+      this.noteLink(list.createDiv(), p.from, index!.title(p.from), p.path);
+      this.noteLink(list.createDiv(), p.path, index!.title(p.path), p.from);
       const why = c.createDiv("mind-small");
       why.createSpan({ text: t("pairWhyA"), cls: "mind-muted" });
       why.createSpan({ text: p.shared.join(" · ") });
@@ -81,10 +101,12 @@ export class TodayView extends MindView {
       const row = c.createDiv("mind-row");
       const write = row.createEl("button", { text: t("writeThought"), cls: "mod-cta" });
       write.onclick = () => void this.writeThought(p.from, p.path, p.shared);
+      const cmp = row.createEl("button", { text: t("compare") });
+      cmp.onclick = () => this.peek([p.from, p.path]);
       const link = row.createEl("button", { text: t("link") });
       link.onclick = () => {
         const f = this.plugin.model.files.get(p.from);
-        if (f) new LinkModal(this.app, f, index!.title(p.path)).open();
+        if (f) new LinkModal(this.app, f, index!.title(p.path), undefined, this.plugin).open();
       };
       const no = row.createEl("button", { text: t("notThis") });
       no.onclick = () => void this.plugin.model.reject(p.from, p.path);
@@ -97,7 +119,9 @@ export class TodayView extends MindView {
       () => this.openList(t("plannedList"), stats!.planned.map((x) => ({ label: x.name, hint: t("mentions", { n: x.mentions }), open: () => this.app.workspace.openLinkText(x.name, "", false) }))),
       stats!.planned.slice(0, 2).map((x) => x.name).join(" · ") + (stats!.planned.length > 2 ? " · …" : ""));
     this.row(w, String(stats!.orphans.length), t("orphanCount"),
-      () => this.openList(t("orphanList"), stats!.orphans.map((path) => ({ label: index!.title(path), open: () => this.app.workspace.openLinkText(path, "", false) }))));
+      () => this.openList(t("orphanList"), stats!.orphans.map((path) => ({ label: index!.title(path), open: () => this.peek([path]) }))));
+
+    this.recentCard(el);
   }
 
   private row(parent: HTMLElement, n: string, label: string, onClick: () => void, sub?: string): void {
@@ -117,7 +141,7 @@ export class TodayView extends MindView {
       const text = this.plugin.textCache.get(path);
       if (!text) continue;
       const bare = analyzeLinkLines(text).filter((l) => !l.explained).reduce((n, l) => n + l.targets.length, 0);
-      if (bare) items.push({ label: this.plugin.model.index!.title(path), hint: t("bareN", { n: bare }), open: () => this.app.workspace.openLinkText(path, "", false), n: bare });
+      if (bare) items.push({ label: this.plugin.model.index!.title(path), hint: t("bareN", { n: bare }), open: () => this.peek([path]), n: bare });
     }
     items.sort((a, b) => (b.n ?? 0) - (a.n ?? 0));
     this.openList(t("bareList"), items);
@@ -182,6 +206,16 @@ export class LinksView extends MindView {
     const el = this.root();
     const f = this.file;
     if (!f) { el.createDiv({ text: t("openNote"), cls: "mind-muted" }); return; }
+    const prev = this.plugin.recent(1, f.path)[0];
+    if (prev) {
+      const b = el.createEl("button", { cls: "mind-prev" });
+      setIcon(b.createSpan("mind-card-icon"), "arrow-left");
+      b.createSpan({ text: t("prevNote", { t: this.plugin.model.index?.title(prev) ?? prev }) });
+      b.onclick = () => {
+        const pf = this.app.vault.getAbstractFileByPath(prev);
+        if (pf instanceof TFile) void this.app.workspace.getLeaf(false).openFile(pf);
+      };
+    }
     el.createEl("h3", { text: f.basename, cls: "mind-title" });
     if (this.loading(el)) return;
     const index = this.plugin.model.index!;
@@ -202,7 +236,7 @@ export class LinksView extends MindView {
       else {
         c.createDiv({ text: t("bareHint"), cls: "mind-muted mind-small" });
         const b = c.createEl("button", { text: t("addWhy"), cls: "mod-cta mind-small-btn" });
-        b.onclick = () => new LinkModal(this.app, f, target).open();
+        b.onclick = () => new LinkModal(this.app, f, target, undefined, this.plugin).open();
       }
     }
 
@@ -213,14 +247,14 @@ export class LinksView extends MindView {
     if (!sug.length) s.createDiv({ text: t("noSimilar"), cls: "mind-muted mind-small" });
     for (const x of sug) {
       const c = s.createDiv("mind-link-card");
-      this.noteLink(c, x.path, index.title(x.path));
+      this.noteLink(c, x.path, index.title(x.path), f.path);
       const why: string[] = [];
       if (x.shared.length) why.push(t("sharedWords", { w: x.shared.join(" · ") }));
       if (x.neighbours.length) why.push(t("bothLinked", { n: x.neighbours.slice(0, 2).map((p) => `«${index.title(p)}»`).join(", ") }));
       c.createDiv({ text: why.join("; "), cls: "mind-muted mind-small" });
       const row = c.createDiv("mind-row");
       const link = row.createEl("button", { text: t("link"), cls: "mind-small-btn" });
-      link.onclick = () => new LinkModal(this.app, f, index.title(x.path)).open();
+      link.onclick = () => new LinkModal(this.app, f, index.title(x.path), undefined, this.plugin).open();
       const no = row.createEl("button", { text: t("no"), cls: "mind-small-btn" });
       no.onclick = () => void this.plugin.model.reject(f.path, x.path);
       const later = row.createEl("button", { text: t("later"), cls: "mind-small-btn" });

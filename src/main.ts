@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, MarkdownView, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import { App, FuzzySuggestModal, MarkdownView, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, debounce } from "obsidian";
 import { DEFAULT_DATA, VaultModel, type PluginData } from "./model";
 import { LinksView, StatsView, TodayView, VIEW_LINKS, VIEW_STATS, VIEW_TODAY } from "./ui/views";
 import { LinkModal } from "./ui/link-modal";
@@ -36,6 +36,7 @@ export default class MindPlugin extends Plugin {
       },
     });
     this.addSettingTab(new MindSettings(this.app, this));
+    this.registerEvent(this.app.workspace.on("file-open", (f) => { if (f && f.extension === "md") this.remember(f.path); }));
 
     this.app.workspace.onLayoutReady(async () => {
       await this.model.rebuild();
@@ -44,6 +45,22 @@ export default class MindPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("delete", () => this.model.scheduleRebuild()));
       this.registerEvent(this.app.vault.on("rename", () => this.model.scheduleRebuild()));
     });
+  }
+
+  private persist = debounce(() => void this.saveData(this.data), 2000, true);
+
+  /** Newest first, unique, ten at most. Called for notes opened anywhere, and for notes peeked in the preview. */
+  remember(path: string): void {
+    const r = this.data.recent.filter((p) => p !== path);
+    r.unshift(path);
+    this.data.recent = r.slice(0, 10);
+    this.persist();
+    this.model.notify();
+  }
+
+  /** Recent notes that still exist. */
+  recent(n = 3, except?: string): string[] {
+    return this.data.recent.filter((p) => p !== except && this.app.vault.getAbstractFileByPath(p) instanceof TFile).slice(0, n);
   }
 
   async setLanguage(lang: Lang): Promise<void> {
@@ -73,13 +90,17 @@ class NotePicker extends FuzzySuggestModal<TFile> {
     this.setPlaceholder(t("pickNote"));
   }
   getItems(): TFile[] {
-    return this.app.vault.getMarkdownFiles().filter((f) => f !== this.from);
+    // recently opened notes first: the one you just read is usually the one you want to link
+    const rank = new Map(this.plugin.data.recent.map((p, i) => [p, i]));
+    return this.app.vault.getMarkdownFiles()
+      .filter((f) => f !== this.from)
+      .sort((a, b) => (rank.get(a.path) ?? 99) - (rank.get(b.path) ?? 99));
   }
   getItemText(f: TFile): string {
     return f.basename;
   }
   onChooseItem(f: TFile): void {
-    new LinkModal(this.app, this.from, f.basename).open();
+    new LinkModal(this.app, this.from, f.basename, undefined, this.plugin).open();
   }
 }
 
