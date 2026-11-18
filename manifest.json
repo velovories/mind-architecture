@@ -1,7 +1,7 @@
 {
   "id": "mind-architecture",
   "name": "Mind Architecture",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "minAppVersion": "1.5.0",
   "description": "Объяснённые связи, пары для размышления и качество мышления в твоём хранилище.",
   "author": "velovories",

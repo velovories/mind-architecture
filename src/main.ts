@@ -1,6 +1,12 @@
 import { App, FuzzySuggestModal, MarkdownView, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, debounce } from "obsidian";
 import { DEFAULT_DATA, VaultModel, type PluginData } from "./model";
-import { LinksView, StatsView, TodayView, VIEW_LINKS, VIEW_STATS, VIEW_TODAY } from "./ui/views";
+import { LinksView, StatsView, VIEW_BRANCHES, VIEW_ISLANDS, VIEW_LINKS, VIEW_STATS, VIEW_TODAY } from "./ui/views";
+import { HubView } from "./ui/hub";
+import { IslandsView } from "./ui/islands-view";
+import { BranchesView } from "./ui/branches-view";
+import { CaptureModal } from "./ui/capture";
+import { WalkModal, walkStart } from "./ui/walk";
+import { TILE_IDS } from "./model";
 import { LinkModal } from "./ui/link-modal";
 import { LANG_NAMES, setLang, t, type Lang } from "./i18n";
 
@@ -14,17 +20,40 @@ export default class MindPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.data = Object.assign(structuredClone(DEFAULT_DATA), await this.loadData());
+    // tiles added in a newer version join the end of a saved order
+    const order = this.data.tiles.order.filter((x) => (TILE_IDS as readonly string[]).includes(x));
+    this.data.tiles.order = [...order, ...TILE_IDS.filter((x) => !order.includes(x))];
     setLang(this.data.lang);
     this.model = new VaultModel(this.app, () => this.data, () => this.saveData(this.data));
 
-    this.registerView(VIEW_TODAY, (leaf) => new TodayView(leaf, this));
+    this.registerView(VIEW_TODAY, (leaf) => new HubView(leaf, this));
+    this.registerView(VIEW_ISLANDS, (leaf) => new IslandsView(leaf, this));
+    this.registerView(VIEW_BRANCHES, (leaf) => new BranchesView(leaf, this));
     this.registerView(VIEW_LINKS, (leaf) => new LinksView(leaf, this));
     this.registerView(VIEW_STATS, (leaf) => new StatsView(leaf, this));
 
-    this.addRibbonIcon("brain-circuit", `Mind Architecture: ${t("today")}`, () => void this.open(VIEW_TODAY));
+    this.addRibbonIcon("brain-circuit", "Mind Architecture", () => void this.open(VIEW_TODAY));
     this.addCommand({ id: "open-today", name: t("cmdToday"), callback: () => void this.open(VIEW_TODAY) });
     this.addCommand({ id: "open-links", name: t("cmdLinks"), callback: () => void this.open(VIEW_LINKS, true) });
     this.addCommand({ id: "open-stats", name: t("cmdStats"), callback: () => void this.open(VIEW_STATS) });
+    this.addCommand({ id: "open-islands", name: t("cmdIslands"), callback: () => void this.open(VIEW_ISLANDS) });
+    this.addCommand({ id: "capture", name: t("cmdCapture"), callback: () => new CaptureModal(this.app, this).open() });
+    this.addCommand({
+      id: "walk", name: t("cmdWalk"), callback: () => {
+        const start = walkStart(this);
+        if (start) new WalkModal(this.app, this, start).open();
+      },
+    });
+    this.addCommand({
+      id: "branches",
+      name: t("cmdBranches"),
+      checkCallback: (checking) => {
+        const f = this.app.workspace.getActiveFile();
+        if (!f || f.extension !== "md") return false;
+        if (!checking) void this.openBranches(f.path);
+        return true;
+      },
+    });
     this.addCommand({
       id: "link-with-why",
       name: t("cmdLinkWhy"),
@@ -70,6 +99,14 @@ export default class MindPlugin extends Plugin {
     // Views re-render in the new language; tab titles follow on the next layout pass.
     this.model.notify();
     this.app.workspace.requestSaveLayout();
+  }
+
+  /** One «Ветви» tab, re-pointed at whichever note you ask about. */
+  async openBranches(path: string): Promise<void> {
+    const { workspace } = this.app;
+    const leaf = workspace.getLeavesOfType(VIEW_BRANCHES)[0] ?? workspace.getLeaf("tab");
+    await leaf.setViewState({ type: VIEW_BRANCHES, active: true, state: { path } });
+    await workspace.revealLeaf(leaf);
   }
 
   async open(type: string, side = false): Promise<void> {
@@ -123,6 +160,14 @@ class MindSettings extends PluginSettingTab {
           this.display(); // redraw this page in the new language
         });
       });
+
+    new Setting(containerEl)
+      .setName(t("setCaptureFolder"))
+      .setDesc(t("setCaptureFolderDesc"))
+      .addText((tx) => tx.setValue(this.plugin.data.captureFolder).onChange(async (v) => {
+        this.plugin.data.captureFolder = v.trim();
+        await this.plugin.saveData(this.plugin.data);
+      }));
 
     new Setting(containerEl)
       .setName(t("setExclude"))

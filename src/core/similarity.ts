@@ -29,7 +29,9 @@ const STOP = new Set(
     "його вона воно вони цей цього того свою свої своїх своє проте лише навіть саме тільки можна через після " +
     "перед кожен кожна людина людини людей люди життя ніколи досі тобто " +
     "этого этому этих тоже лично конкретно чему хотя хоть думаю думал сказать знаю понимать понял " +
-    "чому хоча думаю думав сказати знаю розумію побачити побачили побачимо каже сказав якийсь насправді"
+    "считалось считается считают говорят говорил вообще конечно наверное " +
+    "чому хоча думаю думав сказати знаю розумію побачити побачили побачимо каже сказав якийсь насправді " +
+    "йому йому її ними нього бачимо бачити бачив можемо маємо"
   ).split(/\s+/),
 );
 const STEM = 6;
@@ -58,6 +60,8 @@ export class SimilarityIndex {
   private words = new Map<string, Map<string, string>>();
   private docs = new Map<string, Doc>();
   private undirected = new Map<string, Set<string>>();
+  private df = new Map<string, number>();
+  private N = 1;
 
   constructor(docs: Doc[]) {
     const tfs = new Map<string, Map<string, { n: number; word: string }>>();
@@ -75,6 +79,8 @@ export class SimilarityIndex {
       }
     }
     const N = docs.length || 1;
+    this.df = df;
+    this.N = N;
     for (const [path, tf] of tfs) {
       const v = new Map<string, number>();
       const w = new Map<string, string>();
@@ -130,6 +136,42 @@ export class SimilarityIndex {
       if (s.score >= minScore && (s.shared.length >= 2 || s.neighbours.length)) out.push({ path: other, ...s });
     }
     return out.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  /** Notes most like a text that is not a note yet (the capture form), strongest first. */
+  suggestText(text: string, limit = 3, minScore = 0.06, exclude: Set<string> = new Set()): Suggestion[] {
+    const tf = tokenize(text);
+    const v = new Map<string, number>();
+    const w = new Map<string, string>();
+    let sq = 0;
+    for (const [s, { n, word }] of tf) {
+      const d = this.df.get(s) ?? 0;
+      if (d < 1 || d > this.N * 0.25) continue;
+      const x = (1 + Math.log(n)) * Math.log((this.N + 1) / d);
+      v.set(s, x); w.set(s, word); sq += x * x;
+    }
+    const norm = Math.sqrt(sq) || 1;
+    const out: Suggestion[] = [];
+    for (const [path, vb] of this.vec) {
+      if (exclude.has(path)) continue;
+      let dot = 0;
+      const common: [string, number][] = [];
+      for (const [s, x] of v) {
+        const y = vb.get(s);
+        if (y === undefined) continue;
+        dot += x * y;
+        common.push([s, x * y]);
+      }
+      const score = dot / (norm * this.norm.get(path)!);
+      if (score < minScore || !common.length) continue;
+      common.sort((a, b) => b[1] - a[1]);
+      out.push({ path, score, shared: common.slice(0, 4).map(([s]) => w.get(s)!), neighbours: [] });
+    }
+    return out.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  paths(): string[] {
+    return [...this.docs.keys()];
   }
 
   /** Graph distance, capped. */

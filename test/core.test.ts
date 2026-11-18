@@ -138,3 +138,55 @@ test("default confidence is not written in either language", () => {
   assert.equal(explanationSuffix("аналогія", "x", "мій висновок"), "аналогія: x");
   assert.equal(explanationSuffix("аналогия", "x", "гипотеза"), "аналогия (гипотеза): x");
 });
+
+// ---------- islands, branches, questions ----------
+import { findIslands, branchesOf, openQuestions, matchNames } from "../src/core/islands.ts";
+
+test("two clusters joined by one bridge split into two islands, singletons stay alone", () => {
+  const A = ["a1", "a2", "a3", "a4", "a5", "a6"], B = ["b1", "b2", "b3", "b4", "b5", "b6"];
+  const links: [string, string][] = [];
+  for (const g of [A, B]) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) links.push([g[i], g[j]]);
+  links.push(["a1", "b1"]);
+  const m = findIslands([...A, ...B, "z"], links, 5);
+  assert.deepEqual(m.alone, ["z"]);
+  assert.equal(m.islands.length, 2);
+  assert.deepEqual(m.islands.map((i) => i.members.slice().sort()).sort(), [A, B]);
+  // stable: same input, same answer
+  assert.deepEqual(findIslands([...A, ...B, "z"], links, 5), m);
+});
+
+test("small components are not split", () => {
+  const m = findIslands(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+  assert.equal(m.islands.length, 1);
+  assert.equal(m.islands[0].hub, "b");
+});
+
+test("renamed islands keep their names when membership shifts a little", () => {
+  const m = findIslands(["a", "b", "c", "d"], [["a", "b"], ["b", "c"], ["c", "d"]]);
+  const names = matchNames(m.islands, [{ members: ["a", "b", "c"], name: "Моё" }]);
+  assert.equal(names.get(m.islands[0].id), "Моё");
+});
+
+test("branches find where second-ring notes converge", () => {
+  const g: Record<string, string[]> = { r: ["x", "y"], x: ["r", "z"], y: ["r", "z"], z: ["x", "y"] };
+  const b = branchesOf("r", (p) => g[p] ?? [], (a, c) => (a === "r" && c === "x" ? "потому что" : undefined));
+  assert.equal(b.first[0].path, "x");            // explained first
+  assert.deepEqual(b.converge, [{ path: "z", via: ["x", "y"] }]);
+});
+
+test("open questions come only from a questions section", () => {
+  const text = "Текст?\n\n## Вопросы\n- Кто открыл фаги?\n- [ ] Почему без Нобеля\n\n## Источники\n- статья?";
+  assert.deepEqual(openQuestions(text), ["Кто открыл фаги?", "Почему без Нобеля"]);
+  assert.deepEqual(openQuestions("## Питання\n1. Як?"), []);   // too short to be a question
+  assert.deepEqual(openQuestions("## Які питання лишилися?\n- Що далі з цим?"), ["Що далі з цим?"]);
+});
+
+test("real vault: islands cover every note exactly once", { skip: !VAULT || !existsSync(VAULT) }, () => {
+  const { docs } = loadVault();
+  const links: [string, string][] = docs.flatMap((d) => [...d.links].map((t) => [d.path, t] as [string, string]));
+  const m = findIslands(docs.map((d) => d.path), links);
+  const all = [...m.islands.flatMap((i) => i.members), ...m.alone];
+  assert.equal(all.length, docs.length);
+  assert.equal(new Set(all).size, docs.length);
+  console.log("islands:", m.islands.map((i) => i.members.length).join(" "), "alone:", m.alone.length);
+});

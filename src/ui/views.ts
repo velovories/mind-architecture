@@ -1,186 +1,17 @@
-// The three views: Сегодня, Связи (side panel), Качество мышления.
+// Side panel «Связи» and «Качество мышления». The home screen lives in hub.ts.
 
-import { ItemView, MarkdownView, Modal, Notice, TFile, WorkspaceLeaf, setIcon } from "obsidian";
+import { MarkdownView, TFile, setIcon } from "obsidian";
 import type MindPlugin from "../main";
 import { analyzeLinkLines } from "../core/links";
-import { pickForDay } from "../core/similarity";
 import { LinkModal } from "./link-modal";
-import { PreviewModal } from "./preview";
+import { MindView } from "./base";
 import { t } from "../i18n";
 
 export const VIEW_TODAY = "mind-today";
 export const VIEW_LINKS = "mind-links";
 export const VIEW_STATS = "mind-stats";
-
-abstract class MindView extends ItemView {
-  private off?: () => void;
-  constructor(leaf: WorkspaceLeaf, protected plugin: MindPlugin) { super(leaf); }
-  getIcon(): string { return "brain-circuit"; }
-  async onOpen(): Promise<void> {
-    this.off = this.plugin.model.onChange(() => this.render());
-    this.render();
-  }
-  async onClose(): Promise<void> { this.off?.(); }
-  abstract render(): void;
-
-  protected root(): HTMLElement {
-    const el = this.contentEl;
-    el.empty();
-    el.addClass("mind-view");
-    return el;
-  }
-
-  protected card(parent: HTMLElement, icon: string, title: string, tone = ""): HTMLElement {
-    const c = parent.createDiv(`mind-card ${tone}`);
-    const h = c.createDiv("mind-card-head");
-    setIcon(h.createSpan("mind-card-icon"), icon);
-    h.createSpan({ text: title });
-    return c;
-  }
-
-  /** A note name: tap = quick look over this screen; the preview has "open fully" and "back to the question". */
-  protected noteLink(parent: HTMLElement, path: string, title: string, compareWith?: string): HTMLElement {
-    const a = parent.createEl("a", { text: title, cls: "mind-note-link", href: "#" });
-    a.onclick = (e) => { e.preventDefault(); this.peek(compareWith ? [path, compareWith] : [path]); };
-    return a;
-  }
-
-  protected peek(paths: string[]): void {
-    new PreviewModal(this.app, paths, (p) => this.plugin.remember(p)).open();
-  }
-
-  protected recentCard(parent: HTMLElement, except?: string): void {
-    const c = this.card(parent, "history", t("recent"));
-    const list = this.plugin.recent(3, except);
-    if (!list.length) { c.createDiv({ text: t("recentEmpty"), cls: "mind-muted mind-small" }); return; }
-    const box = c.createDiv("mind-recent");
-    for (const p of list) {
-      const f = this.app.vault.getAbstractFileByPath(p) as TFile;
-      const b = box.createEl("button", { cls: "mind-recent-item" });
-      setIcon(b.createSpan("mind-card-icon"), "file-text");
-      b.createSpan({ text: f.basename });
-      b.onclick = () => this.peek([p]);
-    }
-  }
-
-  protected loading(el: HTMLElement): boolean {
-    if (this.plugin.model.index && this.plugin.model.stats) return false;
-    el.createDiv({ text: t("loading"), cls: "mind-muted" });
-    return true;
-  }
-}
-
-// ---------------- Сегодня ----------------
-
-export class TodayView extends MindView {
-  getViewType(): string { return VIEW_TODAY; }
-  getDisplayText(): string { return t("today"); }
-
-  render(): void {
-    const el = this.root();
-    el.createEl("h2", { text: t("today"), cls: "mind-title" });
-    if (this.loading(el)) return;
-    const { index, stats } = this.plugin.model;
-
-    // Pair to think about
-    const pairs = index!.discoveryPairs(this.plugin.model.hidden);
-    const p = pickForDay(pairs, new Date());
-    const c = this.card(el, "git-compare-arrows", t("pairTitle"), "is-warm");
-    if (!p) {
-      c.createDiv({ text: t("pairEmpty"), cls: "mind-muted" });
-    } else {
-      const list = c.createDiv("mind-pair-list");
-      this.noteLink(list.createDiv(), p.from, index!.title(p.from), p.path);
-      this.noteLink(list.createDiv(), p.path, index!.title(p.path), p.from);
-      const why = c.createDiv("mind-small");
-      why.createSpan({ text: t("pairWhyA"), cls: "mind-muted" });
-      why.createSpan({ text: p.shared.join(" · ") });
-      why.createSpan({ text: t("pairWhyB"), cls: "mind-muted" });
-      c.createDiv({ text: t("pairQuestion", { a: index!.title(p.from), b: index!.title(p.path) }), cls: "mind-question" });
-      c.createDiv({ text: t("notClaim"), cls: "mind-muted mind-small" });
-      const row = c.createDiv("mind-row");
-      const write = row.createEl("button", { text: t("writeThought"), cls: "mod-cta" });
-      write.onclick = () => void this.writeThought(p.from, p.path, p.shared);
-      const cmp = row.createEl("button", { text: t("compare") });
-      cmp.onclick = () => this.peek([p.from, p.path]);
-      const link = row.createEl("button", { text: t("link") });
-      link.onclick = () => {
-        const f = this.plugin.model.files.get(p.from);
-        if (f) new LinkModal(this.app, f, index!.title(p.path), undefined, this.plugin).open();
-      };
-      const no = row.createEl("button", { text: t("notThis") });
-      no.onclick = () => void this.plugin.model.reject(p.from, p.path);
-    }
-
-    // Waiting
-    const w = this.card(el, "inbox", t("waiting"));
-    this.row(w, String(stats!.bare), t("bareCount"), () => this.openBareList());
-    this.row(w, String(stats!.planned.length), t("plannedCount"),
-      () => this.openList(t("plannedList"), stats!.planned.map((x) => ({ label: x.name, hint: t("mentions", { n: x.mentions }), open: () => this.app.workspace.openLinkText(x.name, "", false) }))),
-      stats!.planned.slice(0, 2).map((x) => x.name).join(" · ") + (stats!.planned.length > 2 ? " · …" : ""));
-    this.row(w, String(stats!.orphans.length), t("orphanCount"),
-      () => this.openList(t("orphanList"), stats!.orphans.map((path) => ({ label: index!.title(path), open: () => this.peek([path]) }))));
-
-    this.recentCard(el);
-  }
-
-  private row(parent: HTMLElement, n: string, label: string, onClick: () => void, sub?: string): void {
-    const r = parent.createEl("button", { cls: "mind-count-row" });
-    r.createSpan({ text: n, cls: "mind-count" });
-    const t = r.createSpan({ cls: "mind-count-label" });
-    t.createSpan({ text: label });
-    if (sub) t.createDiv({ text: sub, cls: "mind-muted mind-small" });
-    setIcon(r.createSpan("mind-chevron"), "chevron-right");
-    r.onclick = onClick;
-  }
-
-  private openBareList(): void {
-    const items: ListItem[] = [];
-    for (const [path, file] of this.plugin.model.files) {
-      void file;
-      const text = this.plugin.textCache.get(path);
-      if (!text) continue;
-      const bare = analyzeLinkLines(text).filter((l) => !l.explained).reduce((n, l) => n + l.targets.length, 0);
-      if (bare) items.push({ label: this.plugin.model.index!.title(path), hint: t("bareN", { n: bare }), open: () => this.peek([path]), n: bare });
-    }
-    items.sort((a, b) => (b.n ?? 0) - (a.n ?? 0));
-    this.openList(t("bareList"), items);
-  }
-
-  private openList(title: string, items: ListItem[]): void {
-    new ListModal(this.app, title, items).open();
-  }
-
-  private async writeThought(a: string, b: string, shared: string[]): Promise<void> {
-    const ta = this.plugin.model.index!.title(a), tb = this.plugin.model.index!.title(b);
-    let name = t("thoughtName", { a: ta, b: tb }).replace(/[\\/:*?"<>|#^[\]]/g, " ").slice(0, 120).trim();
-    let i = 2;
-    while (this.app.vault.getAbstractFileByPath(`${name}.md`)) name = `${name} ${i++}`;
-    const today = new Date().toLocaleDateString("ru-RU");
-    const body = t("thoughtBody", { a: ta, b: tb, words: shared.join(", "), date: today });
-    const file = await this.app.vault.create(`${name}.md`, body);
-    await this.app.workspace.getLeaf(false).openFile(file);
-    new Notice(t("thoughtCreated"));
-  }
-}
-
-interface ListItem { label: string; hint?: string; open: () => unknown; n?: number }
-
-class ListModal extends Modal {
-  constructor(app: import("obsidian").App, private title: string, private items: ListItem[]) { super(app); }
-  onOpen(): void {
-    this.contentEl.createEl("h3", { text: this.title });
-    if (!this.items.length) this.contentEl.createDiv({ text: t("empty"), cls: "mind-muted" });
-    const list = this.contentEl.createDiv("mind-list");
-    for (const it of this.items) {
-      const b = list.createEl("button", { cls: "mind-list-item" });
-      b.createSpan({ text: it.label });
-      if (it.hint) b.createSpan({ text: it.hint, cls: "mind-muted mind-small" });
-      b.onclick = () => { this.close(); void it.open(); };
-    }
-  }
-  onClose(): void { this.contentEl.empty(); }
-}
+export const VIEW_ISLANDS = "mind-islands";
+export const VIEW_BRANCHES = "mind-branches";
 
 // ---------------- Связи (side panel for the active note) ----------------
 
@@ -199,7 +30,7 @@ export class LinksView extends MindView {
 
   private track(): void {
     const f = this.app.workspace.getActiveViewOfType(MarkdownView)?.file ?? this.app.workspace.getActiveFile();
-    if (f && f.extension === "md" && f !== this.file) { this.file = f; this.render(); }
+    if (f && f.extension === "md" && f !== this.file) { this.file = f; this.safeRender(); }
   }
 
   render(): void {
@@ -216,7 +47,12 @@ export class LinksView extends MindView {
         if (pf instanceof TFile) void this.app.workspace.getLeaf(false).openFile(pf);
       };
     }
-    el.createEl("h3", { text: f.basename, cls: "mind-title" });
+    const head = el.createDiv("mind-head-row");
+    head.createEl("h3", { text: f.basename, cls: "mind-title" });
+    const br = head.createEl("button", { cls: "mind-small-btn" });
+    setIcon(br.createSpan("mind-card-icon"), "git-fork");
+    br.createSpan({ text: t("branchesBtn") });
+    br.onclick = () => void this.plugin.openBranches(f.path);
     if (this.loading(el)) return;
     const index = this.plugin.model.index!;
     const text = this.plugin.textCache.get(f.path) ?? "";
